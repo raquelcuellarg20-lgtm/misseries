@@ -1,32 +1,21 @@
-// Variables globales
 let categoriaActual = 'pendiente_estreno';
 let modalSerie;
 let modalChecklist;
 
-// Inicialización
 document.addEventListener('DOMContentLoaded', () => {
     modalSerie = new bootstrap.Modal(document.getElementById('modalSerie'));
     modalChecklist = new bootstrap.Modal(document.getElementById('modalChecklist'));
     
-    // Limpiar backdrop al cerrar modal de checklist
     document.getElementById('modalChecklist').addEventListener('hidden.bs.modal', () => {
-        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-            backdrop.remove();
-        });
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
         document.body.classList.remove('modal-open');
         document.body.style.overflow = '';
         document.body.style.paddingRight = '';
         UIManager.renderizarSeries(categoriaActual);
     });
     
-    // Limpiar al cerrar modal de serie
     document.getElementById('modalSerie').addEventListener('hidden.bs.modal', () => {
         UIManager.renderizarSeries(categoriaActual);
-    });
-    
-    // Listener para restaurar columnas al cambiar tamaño de pantalla
-    window.addEventListener('resize', () => {
-        UIManager.restaurarColumnas();
     });
     
     inicializarEventos();
@@ -72,19 +61,17 @@ async function editarSerie(id) {
             document.getElementById('titulo').value = serie.titulo || '';
             document.getElementById('categoria').value = serie.categoria || '';
             document.getElementById('portada').value = serie.portada || '';
-            
             actualizarCamposExtras(serie.categoria, serie);
             modalSerie.show();
         }
     } catch (error) {
-        console.error('Error al cargar serie:', error);
+        console.error('Error:', error);
         alert('Error al cargar la serie');
     }
 }
 
 function actualizarCamposExtras(categoria, datos = {}) {
     const camposExtras = document.getElementById('camposExtras');
-    
     switch(categoria) {
         case 'pendiente_estreno':
             camposExtras.innerHTML = `
@@ -92,10 +79,8 @@ function actualizarCamposExtras(categoria, datos = {}) {
                     <label class="form-label">Fecha de Estreno (Opcional)</label>
                     <input type="date" class="form-control bg-dark text-white" id="fechaEstreno" 
                            value="${datos.fecha_estreno ? datos.fecha_estreno.split('T')[0] : ''}">
-                </div>
-            `;
+                </div>`;
             break;
-            
         case 'en_emision':
             camposExtras.innerHTML = `
                 <div class="mb-3">
@@ -116,16 +101,11 @@ function actualizarCamposExtras(categoria, datos = {}) {
                                   data-dia="${dia}">${dia.charAt(0).toUpperCase() + dia.slice(1)}</span>
                         `).join('')}
                     </div>
-                </div>
-            `;
-            
+                </div>`;
             document.querySelectorAll('.dia-badge').forEach(badge => {
-                badge.addEventListener('click', () => {
-                    badge.classList.toggle('seleccionado');
-                });
+                badge.addEventListener('click', () => badge.classList.toggle('seleccionado'));
             });
             break;
-            
         case 'vistas':
             camposExtras.innerHTML = `
                 <div class="mb-3">
@@ -137,10 +117,8 @@ function actualizarCamposExtras(categoria, datos = {}) {
                             <label for="star${valor}">★</label>
                         `).join('')}
                     </div>
-                </div>
-            `;
+                </div>`;
             break;
-            
         default:
             camposExtras.innerHTML = '';
     }
@@ -152,10 +130,7 @@ async function guardarSerie() {
     const categoria = document.getElementById('categoria').value;
     const portada = document.getElementById('portada').value;
     
-    if (!titulo) {
-        alert('El título es obligatorio');
-        return;
-    }
+    if (!titulo) { alert('El título es obligatorio'); return; }
     
     const datos = { titulo, categoria, portada };
     
@@ -164,46 +139,30 @@ async function guardarSerie() {
             const fechaPE = document.getElementById('fechaEstreno')?.value;
             if (fechaPE) datos.fecha_estreno = fechaPE;
             break;
-            
         case 'en_emision':
             datos.fecha_estreno = document.getElementById('fechaEstreno').value;
             datos.total_capitulos = parseInt(document.getElementById('totalCapitulos').value);
-            datos.dias_emision = Array.from(document.querySelectorAll('.dia-badge.seleccionado'))
-                .map(badge => badge.dataset.dia);
-            
+            datos.dias_emision = Array.from(document.querySelectorAll('.dia-badge.seleccionado')).map(b => b.dataset.dia);
             if (!datos.fecha_estreno || !datos.total_capitulos || datos.dias_emision.length === 0) {
-                alert('Todos los campos son obligatorios para series en emisión');
-                return;
+                alert('Todos los campos son obligatorios'); return;
             }
             break;
-            
         case 'vistas':
-            const calificacion = document.querySelector('input[name="calificacion"]:checked');
-            if (calificacion) datos.calificacion = parseFloat(calificacion.value);
+            const cal = document.querySelector('input[name="calificacion"]:checked');
+            if (cal) datos.calificacion = parseFloat(cal.value);
             break;
     }
     
     try {
-        let resultado;
-        if (id) {
-            resultado = await SeriesManager.actualizarSerie(id, datos);
-        } else {
-            resultado = await SeriesManager.agregarSerie(datos);
-        }
-        
-        if (resultado) {
-            modalSerie.hide();
-            UIManager.renderizarSeries(categoriaActual);
-        }
+        const resultado = id ? await SeriesManager.actualizarSerie(id, datos) : await SeriesManager.agregarSerie(datos);
+        if (resultado) { modalSerie.hide(); UIManager.renderizarSeries(categoriaActual); }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al guardar la serie');
+        alert('Error al guardar');
     }
 }
 
-function verChecklist(id) {
-    UIManager.mostrarChecklist(id);
-}
+function verChecklist(id) { UIManager.mostrarChecklist(id); }
 
 async function calificarSerie(id) {
     await editarSerie(id);
@@ -212,18 +171,14 @@ async function calificarSerie(id) {
 }
 
 async function eliminarSerie(id) {
-    if (confirm('¿Estás seguro de eliminar esta serie?')) {
+    if (confirm('¿Eliminar esta serie?')) {
         try {
             await SeriesManager.eliminarSerie(id);
             UIManager.renderizarSeries(categoriaActual);
-        } catch (error) {
-            alert('Error al eliminar la serie');
-        }
+        } catch (error) { alert('Error al eliminar'); }
     }
 }
 
-function verDetalleSerie(id) {
-    // Funcionalidad futura
-}
+function verDetalleSerie(id) {}
 
-console.log('✅ App cargada correctamente');
+console.log('✅ App cargada');
