@@ -1,12 +1,14 @@
 class UIManager {
-    // Renderizar series en el contenedor
     static async renderizarSeries(categoria) {
         const container = document.getElementById('series-container');
-        container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
+        container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem;"><div class="spinner-border text-primary" role="status"></div></div>';
         
+        // Obtener series filtradas por categoría
         let series = await SeriesManager.obtenerSeries(categoria);
         
-        // Ordenamiento especial para Pendientes de Estreno
+        // Filtrar nuevamente para asegurar que solo se muestren las de la categoría correcta
+        series = series.filter(s => s.categoria === categoria);
+        
         if (categoria === 'pendiente_estreno') {
             series = SeriesManager.ordenarPendientesEstreno(series);
         }
@@ -32,11 +34,9 @@ class UIManager {
         }
     }
 
-    // Crear tarjeta de serie con imagen adaptable
     static crearTarjetaSerie(serie) {
         return new Promise((resolve) => {
             const col = document.createElement('div');
-            col.style.gridRow = 'span 1';
             
             const portadaData = ImageManager.obtenerPortada(serie.portada, serie.titulo);
             const portada = portadaData.url;
@@ -51,11 +51,11 @@ class UIManager {
                 case 'en_emision':
                     const capitulos = serie.capitulos_checklist || [];
                     const capitulosVistos = capitulos.filter(c => c.visto).length;
-                    const totalCaps = serie.total_capitulos || 0;
+                    const totalCaps = serie.total_capitulos || capitulos.length || 0;
                     
                     const proximoCapitulo = ChecklistManager.obtenerProximoCapitulo(capitulos);
                     
-                    if (proximoCapitulo && proximoCapitulo.fecha) {
+                    if (proximoCapitulo) {
                         proximoCapituloHTML = `
                             <div class="proximo-capitulo" onclick="verChecklist('${serie.id}')">
                                 <div class="d-flex align-items-center">
@@ -66,6 +66,19 @@ class UIManager {
                                         ${proximoCapitulo.visto ? '<i class="fas fa-check-circle text-success ms-1"></i>' : ''}
                                         <br>
                                         <small>📅 ${ChecklistManager.formatearFecha(proximoCapitulo.fecha)}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (capitulos.length > 0 && capitulosVistos === capitulos.length) {
+                        proximoCapituloHTML = `
+                            <div class="proximo-capitulo" style="background: rgba(39, 174, 96, 0.2); border-color: rgba(39, 174, 96, 0.3);">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    <div>
+                                        <small style="opacity: 0.8;">¡Completado!</small>
+                                        <br>
+                                        <small>${capitulosVistos}/${totalCaps} capítulos vistos</small>
                                     </div>
                                 </div>
                             </div>
@@ -88,6 +101,7 @@ class UIManager {
                         <div class="text-warning mb-1">
                             ${this.generarEstrellas(serie.calificacion || 0)}
                         </div>
+                        ${!serie.calificacion ? '<small style="opacity: 0.7;">Sin calificar</small>' : ''}
                     `;
                     break;
                     
@@ -134,7 +148,6 @@ class UIManager {
         });
     }
 
-    // Generar HTML de la tarjeta con imagen adaptable
     static generarHTMLTarjeta(serie, portada, fechaEstreno, infoExtra, r, g, b, textoContraste) {
         const bgColor = `rgb(${r}, ${g}, ${b})`;
         
@@ -165,6 +178,9 @@ class UIManager {
                                 ${serie.categoria === 'en_emision' ? 
                                     `<li><a class="dropdown-item" href="#" onclick="verChecklist('${serie.id}')">
                                         <i class="fas fa-list-check me-2"></i>Ver Checklist</a></li>` : ''}
+                                ${serie.categoria === 'vistas' && !serie.calificacion ? 
+                                    `<li><a class="dropdown-item" href="#" onclick="calificarSerie('${serie.id}')">
+                                        <i class="fas fa-star me-2"></i>Calificar</a></li>` : ''}
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item text-danger" href="#" onclick="eliminarSerie('${serie.id}')">
                                     <i class="fas fa-trash me-2"></i>Eliminar</a></li>
@@ -176,8 +192,11 @@ class UIManager {
         `;
     }
 
-    // Generar estrellas HTML (MÁXIMO 5 ESTRELLAS)
     static generarEstrellas(calificacion) {
+        if (!calificacion || calificacion === 0) {
+            return '<small style="opacity: 0.5;">⭐ Sin calificar</small>';
+        }
+        
         let estrellas = '';
         for (let i = 1; i <= 5; i++) {
             if (i <= calificacion) {
@@ -191,7 +210,6 @@ class UIManager {
         return estrellas;
     }
 
-    // Formatear nombre de categoría
     static formatearCategoria(categoria) {
         const categorias = {
             'pendiente_estreno': 'Próximo estreno',
@@ -203,7 +221,6 @@ class UIManager {
         return categorias[categoria] || categoria;
     }
 
-    // Mostrar checklist en modal
     static async mostrarChecklist(serieId) {
         try {
             const doc = await seriesRef.doc(serieId).get();
@@ -251,17 +268,17 @@ class UIManager {
         }
     }
 
-    // Toggle capítulo en checklist
     static async toggleChecklist(serieId, numeroCapitulo, visto) {
-        await ChecklistManager.toggleCapitulo(serieId, numeroCapitulo, visto);
+        const resultado = await ChecklistManager.toggleCapitulo(serieId, numeroCapitulo, visto);
         
-        // Recargar el checklist
-        setTimeout(async () => {
-            await this.mostrarChecklist(serieId);
-        }, 300);
+        if (resultado) {
+            // Recargar el checklist
+            setTimeout(async () => {
+                await this.mostrarChecklist(serieId);
+            }, 300);
+        }
     }
 
-    // Calcular progreso
     static calcularProgreso(serie) {
         const capitulos = serie.capitulos_checklist || [];
         if (capitulos.length === 0) return 0;
@@ -269,3 +286,5 @@ class UIManager {
         return Math.round((vistos / capitulos.length) * 100);
     }
 }
+
+console.log('✅ UIManager cargado');
