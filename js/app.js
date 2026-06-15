@@ -208,6 +208,58 @@ async function eliminarSerie(id) {
     }
 }
 
+// Previsualizar imagen antes de guardar
+function previsualizarPortada() {
+    const urlInput = document.getElementById('portada');
+    const previewContainer = document.getElementById('previewPortada');
+    
+    if (!previewContainer) {
+        // Crear contenedor de previsualización si no existe
+        const container = document.createElement('div');
+        container.id = 'previewPortada';
+        container.className = 'mb-3 text-center';
+        document.getElementById('portada').parentNode.after(container);
+    }
+    
+    const url = urlInput.value;
+    const previewDiv = document.getElementById('previewPortada');
+    
+    if (url.trim() === '') {
+        previewDiv.innerHTML = '';
+        return;
+    }
+    
+    const urlDirecta = ImageManager.convertirAEnlaceDirecto(url);
+    const servicio = ImageManager.detectarServicio(url);
+    
+    previewDiv.innerHTML = `
+        <div class="mt-2 p-2" style="background: rgba(255,255,255,0.05); border-radius: 10px;">
+            <p class="mb-2">
+                <small>
+                    <i class="${servicio.icon}"></i> 
+                    Detectado: <strong>${servicio.name}</strong>
+                    ${urlDirecta !== url ? ' - <span class="text-success">Convertido a enlace directo</span>' : ''}
+                </small>
+            </p>
+            <img src="${urlDirecta}" 
+                 style="max-height: 200px; border-radius: 8px; max-width: 100%;" 
+                 onerror="this.parentElement.innerHTML='<div class=\\'alert alert-warning py-2\\'>⚠️ No se pudo cargar la imagen. Verifica la URL y los permisos.</div>'"
+                 onload="this.style.display='block';">
+        </div>
+    `;
+}
+
+// Agregar evento al campo de portada
+document.addEventListener('DOMContentLoaded', () => {
+    const portadaInput = document.getElementById('portada');
+    if (portadaInput) {
+        portadaInput.addEventListener('input', previsualizarPortada);
+        portadaInput.addEventListener('paste', () => {
+            setTimeout(previsualizarPortada, 100);
+        });
+    }
+});
+
 // Ver detalle de serie (función placeholder para futura expansión)
 function verDetalleSerie(id) {
     // Aquí puedes agregar lógica para ver detalles completos
