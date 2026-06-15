@@ -26,13 +26,12 @@ class ImageManager {
                 return this.convertirImgurUrl(url);
             
             case 'cloudinary':
-                return url; // Cloudinary ya proporciona URLs directas
+                return url;
             
             case 'direct':
-                return url; // Ya es una URL directa
+                return url;
             
             default:
-                // Intentar detectar si es una URL de imagen por extensión
                 if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
                     return url;
                 }
@@ -44,15 +43,12 @@ class ImageManager {
     static convertirDriveUrl(url) {
         let id = null;
         
-        // Formato: /file/d/ID/view
         const matchFile = url.match(/\/file\/d\/([^\/]+)/);
         if (matchFile) id = matchFile[1];
         
-        // Formato: open?id=ID
         const matchOpen = url.match(/open\?id=([^&]+)/);
         if (matchOpen) id = matchOpen[1];
         
-        // Formato: uc?id=ID
         const matchUc = url.match(/uc\?id=([^&]+)/);
         if (matchUc) id = matchUc[1];
         
@@ -65,27 +61,14 @@ class ImageManager {
 
     // Convertir URL de Imgur
     static convertirImgurUrl(url) {
-        // Si ya es i.imgur.com, es directo
         if (url.includes('i.imgur.com')) return url;
         
-        // Extraer ID de imgur.com/ID
         const match = url.match(/imgur\.com\/([a-zA-Z0-9]+)/);
         if (match) {
             return `https://i.imgur.com/${match[1]}.jpg`;
         }
         
         return url;
-    }
-
-    // Validar si una URL es accesible
-    static async validarUrl(url) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve(true);
-            img.onerror = () => resolve(false);
-            img.src = url;
-            setTimeout(() => resolve(false), 5000); // Timeout de 5 segundos
-        });
     }
 
     // Generar placeholder personalizado
@@ -114,9 +97,31 @@ class ImageManager {
         return `data:image/svg+xml,${encodeURIComponent(svg)}`;
     }
 
-    // Obtener portada final (con manejo de errores)
-    static async obtenerPortada(url, titulo) {
-        // Si no hay URL, devolver placeholder
+    // Obtener color predominante de una imagen (simplificado)
+    static async obtenerColorPredominante(imgElement) {
+        return new Promise((resolve) => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 1;
+                canvas.height = 1;
+                ctx.drawImage(imgElement, 0, 0, 1, 1);
+                const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+                resolve({ r, g, b });
+            } catch (error) {
+                resolve({ r: 102, g: 126, b: 234 }); // Color por defecto
+            }
+        });
+    }
+
+    // Obtener contraste para texto
+    static obtenerContraste(r, g, b) {
+        const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminancia > 0.5 ? '#000000' : '#ffffff';
+    }
+
+    // Obtener portada final
+    static obtenerPortada(url, titulo) {
         if (!url || url.trim() === '') {
             return {
                 url: this.generarPlaceholder(titulo),
@@ -124,38 +129,13 @@ class ImageManager {
             };
         }
         
-        // Convertir a enlace directo
         const urlDirecta = this.convertirAEnlaceDirecto(url);
         
-        // Validar URL (opcional, puede desactivarse para mejorar rendimiento)
-        const esValida = await this.validarUrl(urlDirecta);
-        
-        if (esValida) {
-            return {
-                url: urlDirecta,
-                esPlaceholder: false,
-                servicio: this.detectarServicio(url)
-            };
-        } else {
-            // Si la URL no es válida, mostrar placeholder con aviso
-            return {
-                url: this.generarPlaceholder(titulo, '#e74c3c'),
-                esPlaceholder: true,
-                error: 'URL no válida o inaccesible'
-            };
-        }
-    }
-
-    // Procesar múltiples portadas (para futura galería)
-    static async procesarPortadas(urls, titulo) {
-        const resultados = [];
-        
-        for (const url of urls) {
-            const resultado = await this.obtenerPortada(url, titulo);
-            resultados.push(resultado);
-        }
-        
-        return resultados;
+        return {
+            url: urlDirecta,
+            esPlaceholder: false,
+            servicio: this.detectarServicio(url)
+        };
     }
 }
 
