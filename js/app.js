@@ -19,10 +19,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         UIManager.renderizarSeries(CATEGORIA_ACTUAL, true);
     });
 
-    // Cerrar modal serie → re-renderizar forzado
-    document.getElementById('modalSerie').addEventListener('hidden.bs.modal', () => {
-        UIManager.renderizarSeries(CATEGORIA_ACTUAL, true);
-    });
+    // El modal serie NO re-renderiza aquí: lo hace guardarSerie() directamente
+    // para evitar doble render que causa duplicados
 
     inicializarEventos();
     UIManager.renderizarSeries(CATEGORIA_ACTUAL);
