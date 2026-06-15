@@ -43,23 +43,23 @@ body {
     color: white !important;
 }
 
-/* ============ CONTENEDOR MASONRY TIPO PINTEREST ============ */
+/* ============ CONTENEDOR GRID - ORDEN HORIZONTAL ============ */
 #series-container {
-    column-count: 4;
-    column-gap: var(--card-gap);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-flow: row;
+    gap: var(--card-gap);
     padding: 0;
     margin: 0;
+    align-items: start;
 }
 
-/* Tarjetas - NO se rompen entre columnas */
+/* Tarjetas */
 .serie-card {
-    break-inside: avoid;
-    margin-bottom: var(--card-gap);
     border-radius: 15px;
     overflow: hidden;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     cursor: pointer;
-    display: block;
     width: 100%;
 }
 
@@ -236,13 +236,13 @@ body {
 /* ============ RESPONSIVE ============ */
 @media (max-width: 1200px) {
     #series-container {
-        column-count: 3;
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (max-width: 768px) {
     #series-container {
-        column-count: 2;
+        grid-template-columns: repeat(2, 1fr);
     }
     
     .categorias-nav {
@@ -260,6 +260,6 @@ body {
 
 @media (max-width: 576px) {
     #series-container {
-        column-count: 1;
+        grid-template-columns: repeat(1, 1fr);
     }
 }
