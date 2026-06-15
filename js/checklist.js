@@ -2,9 +2,15 @@ class ChecklistManager {
     // Generar fechas de capítulos basado en fecha de estreno y días de emisión
     static generarFechasCapitulos(fechaEstreno, diasEmision, totalCapitulos) {
         const fechas = [];
-        // Crear fecha sin problemas de zona horaria
-        const partes = fechaEstreno.split('-');
-        const fechaBase = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]), 12, 0, 0);
+        
+        // Crear fecha base sin problemas de zona horaria
+        const partes = fechaEstreno.split('T')[0].split('-');
+        const fechaBase = new Date(
+            parseInt(partes[0]), 
+            parseInt(partes[1]) - 1, 
+            parseInt(partes[2]), 
+            12, 0, 0
+        );
         
         let capitulosGenerados = 0;
         let diasBusqueda = 0;
@@ -18,9 +24,16 @@ class ChecklistManager {
             
             if (diasEmision.includes(diaSemana)) {
                 capitulosGenerados++;
+                // Guardar fecha en formato ISO sin hora para evitar desfases
+                const fechaCapitulo = new Date(
+                    fechaActual.getFullYear(),
+                    fechaActual.getMonth(),
+                    fechaActual.getDate(),
+                    12, 0, 0
+                );
                 fechas.push({
                     numero: capitulosGenerados,
-                    fecha: new Date(fechaActual.getFullYear(), fechaActual.getMonth(), fechaActual.getDate(), 12, 0, 0).toISOString(),
+                    fecha: fechaCapitulo.toISOString(),
                     visto: false
                 });
             }
@@ -42,21 +55,29 @@ class ChecklistManager {
         if (!fecha) return 'Fecha no disponible';
         
         try {
-            const fechaObj = new Date(fecha);
+            // Si la fecha es un timestamp de Firestore
+            if (fecha.toDate && typeof fecha.toDate === 'function') {
+                fecha = fecha.toDate().toISOString();
+            }
+            
+            const partes = fecha.split('T')[0].split('-');
+            if (partes.length !== 3) return 'Fecha no disponible';
+            
+            const año = parseInt(partes[0]);
+            const mes = parseInt(partes[1]) - 1;
+            const dia = parseInt(partes[2]);
+            
+            const fechaObj = new Date(año, mes, dia, 12, 0, 0);
+            
             if (isNaN(fechaObj.getTime())) return 'Fecha no disponible';
             
-            // Ajustar a fecha local sin problema de zona horaria
-            const año = fechaObj.getFullYear();
-            const mes = fechaObj.getMonth();
-            const dia = fechaObj.getDate();
-            const fechaLocal = new Date(año, mes, dia, 12, 0, 0);
-            
-            return fechaLocal.toLocaleDateString('es-ES', {
+            return fechaObj.toLocaleDateString('es-ES', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
             });
         } catch (error) {
+            console.error('Error formateando fecha:', fecha, error);
             return 'Fecha no disponible';
         }
     }
@@ -69,7 +90,7 @@ class ChecklistManager {
                 const data = doc.data();
                 let capitulos = data.capitulos_checklist || [];
                 
-                // Si los capitulos vienen como string (Firestore a veces los guarda así)
+                // Normalizar capitulos si vienen como string
                 if (typeof capitulos === 'string') {
                     try {
                         capitulos = JSON.parse(capitulos);
@@ -83,22 +104,23 @@ class ChecklistManager {
                 if (index !== -1) {
                     capitulos[index].visto = visto;
                     
-                    // Guardar como array normal
                     await seriesRef.doc(serieId).update({
                         capitulos_checklist: capitulos,
                         ultima_actualizacion: new Date().toISOString()
                     });
                     
-                    // Disparar evento para actualizar UI
-                    if (typeof categoriaActual !== 'undefined') {
-                        setTimeout(() => {
-                            UIManager.renderizarSeries(categoriaActual);
-                        }, 500);
+                    // Verificar si todos los capítulos están vistos para mover a Vistas
+                    if (AUTOMATIZACION.emisionAVistas && this.todosVistos(capitulos)) {
+                        await SeriesManager.moverCategoria(serieId, 'vistas');
                     }
+                    
+                    return true;
                 }
             }
+            return false;
         } catch (error) {
             console.error('Error al actualizar capítulo:', error);
+            return false;
         }
     }
 
@@ -106,24 +128,27 @@ class ChecklistManager {
     static obtenerProximoCapitulo(capitulos) {
         if (!capitulos || capitulos.length === 0) return null;
         
-        // Filtrar solo capítulos no vistos
-        const noVistos = capitulos.filter(c => !c.visto);
+        // Normalizar
+        const capsNormalizados = this.normalizarCapitulos(capitulos);
+        
+        const noVistos = capsNormalizados.filter(c => !c.visto);
         if (noVistos.length === 0) return null;
         
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
         
-        // Buscar capítulo con fecha más cercana (hoy o futuro)
-        let proximo = noVistos[0];
+        let proximo = null;
         let menorDiferencia = Infinity;
         
         for (const cap of noVistos) {
             try {
-                const fechaCap = new Date(cap.fecha);
+                const partes = cap.fecha.split('T')[0].split('-');
+                const fechaCap = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
                 fechaCap.setHours(0, 0, 0, 0);
                 
                 const diferencia = fechaCap - hoy;
                 
+                // Priorizar capítulos futuros o de hoy
                 if (diferencia >= 0 && diferencia < menorDiferencia) {
                     menorDiferencia = diferencia;
                     proximo = cap;
@@ -133,12 +158,19 @@ class ChecklistManager {
             }
         }
         
+        // Si no hay futuros, devolver el primer no visto
+        if (!proximo) {
+            proximo = noVistos[0];
+        }
+        
         return proximo;
     }
 
     // Verificar si todos los capítulos están vistos
     static todosVistos(capitulos) {
-        return capitulos && capitulos.length > 0 && capitulos.every(c => c.visto);
+        if (!capitulos || capitulos.length === 0) return false;
+        const caps = this.normalizarCapitulos(capitulos);
+        return caps.every(c => c.visto);
     }
 
     // Normalizar fechas en capitulos
@@ -154,8 +186,10 @@ class ChecklistManager {
         
         return capitulos.map(cap => ({
             numero: cap.numero,
-            fecha: cap.fecha || cap.fecha_estreno || new Date().toISOString(),
+            fecha: cap.fecha || new Date().toISOString(),
             visto: cap.visto || false
         }));
     }
 }
+
+console.log('✅ ChecklistManager cargado');
