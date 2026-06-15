@@ -42,24 +42,25 @@ body {
     color: white !important;
 }
 
-/* Contenedor MASONRY - Tipo Pinterest */
+/* Contenedor - Grid con auto-rows denso */
 #series-container {
-    display: columns;
-    column-count: 4;
-    column-gap: 1.5rem;
-    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    grid-auto-flow: row dense;
+    grid-auto-rows: 1px;
+    align-items: start;
 }
 
-/* Tarjetas - Se adaptan al flujo de columnas */
+/* Tarjetas */
 .serie-card {
-    break-inside: avoid;
-    margin-bottom: 1.5rem;
     border-radius: 15px;
     overflow: hidden;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     cursor: pointer;
-    display: inline-block;
-    width: 100%;
+    display: flex;
+    flex-direction: column;
+    grid-row-end: span var(--card-rows, 300);
 }
 
 .serie-card:hover {
@@ -67,10 +68,11 @@ body {
     box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
 }
 
-/* Imagen - MANTIENE su relación de aspecto original */
+/* Imagen - MANTIENE su aspect-ratio original */
 .serie-card .imagen-container {
     width: 100%;
     line-height: 0;
+    flex-shrink: 0;
 }
 
 .serie-card .imagen-container img {
@@ -82,6 +84,7 @@ body {
 /* Info overlay */
 .serie-card .info-overlay {
     padding: 1rem;
+    flex-shrink: 0;
 }
 
 .serie-card .card-title {
@@ -232,10 +235,10 @@ body {
     background: #c73e54;
 }
 
-/* RESPONSIVE - Columnas adaptables */
+/* RESPONSIVE */
 @media (max-width: 1200px) {
     #series-container {
-        column-count: 3;
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
@@ -245,12 +248,8 @@ body {
     }
     
     #series-container {
-        column-count: 2;
-        column-gap: 1rem;
-    }
-    
-    .serie-card {
-        margin-bottom: 1rem;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
     }
     
     .serie-card .info-overlay {
@@ -264,11 +263,7 @@ body {
 
 @media (max-width: 576px) {
     #series-container {
-        column-count: 2;
-        column-gap: 0.75rem;
-    }
-    
-    .serie-card {
-        margin-bottom: 0.75rem;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
     }
 }
