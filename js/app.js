@@ -98,7 +98,7 @@ function actualizarCamposExtras(categoria, datos = {}) {
                 badge.addEventListener('click', () => badge.classList.toggle('seleccionado'));
             });
             break;
-        case 'vistas':
+                case 'vistas':
             camposExtras.innerHTML = `
                 <div class="mb-3">
                     <label class="form-label">Calificación</label>
@@ -111,19 +111,79 @@ function actualizarCamposExtras(categoria, datos = {}) {
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Checklist personalizado (opcional)</label>
-                    <textarea class="form-control bg-dark text-white" id="checklistPersonalizado" 
-                              rows="4" placeholder="Escribe tu propio checklist...&#10;Ej:&#10;Capítulo 1 - Visto&#10;Capítulo 2 - Pendiente">${datos.checklist_personalizado || ''}</textarea>
-                    <small class="text-muted">Cada línea será un ítem del checklist</small>
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="toggleChecklistPersonalizado()" id="btnAgregarChecklist">
+                        <i class="fas fa-list-check me-1"></i> Agregar checklist personalizado
+                    </button>
+                    <div id="checklistPersonalizadoContainer" style="display:none; margin-top:10px;">
+                        <label class="form-label">Ítems del checklist (uno por línea)</label>
+                        <div id="checklistItems">
+                            ${datos.checklist_personalizado ? 
+                                JSON.parse(datos.checklist_personalizado).map(item => `
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control bg-dark text-white checklist-item" value="${item.texto || ''}" placeholder="Nombre del ítem">
+                                        <span class="input-group-text bg-dark text-white" style="border-color: rgba(255,255,255,0.15);">
+                                            <input type="checkbox" class="form-check-input checklist-check" ${item.visto ? 'checked' : ''}>
+                                        </span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                `).join('')
+                            : `
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control bg-dark text-white checklist-item" placeholder="Nombre del ítem">
+                                    <span class="input-group-text bg-dark text-white" style="border-color: rgba(255,255,255,0.15);">
+                                        <input type="checkbox" class="form-check-input checklist-check">
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="agregarItemChecklist()">
+                            <i class="fas fa-plus me-1"></i> Agregar ítem
+                        </button>
+                    </div>
                 </div>`;
             break;
         case 'a_medias':
             camposExtras.innerHTML = `
                 <div class="mb-3">
-                    <label class="form-label">Checklist personalizado (opcional)</label>
-                    <textarea class="form-control bg-dark text-white" id="checklistPersonalizado" 
-                              rows="4" placeholder="Escribe tu propio checklist...&#10;Ej:&#10;Capítulo 1 - Visto&#10;Capítulo 2 - Pendiente">${datos.checklist_personalizado || ''}</textarea>
-                    <small class="text-muted">Cada línea será un ítem del checklist</small>
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="toggleChecklistPersonalizado()" id="btnAgregarChecklist">
+                        <i class="fas fa-list-check me-1"></i> Agregar checklist personalizado
+                    </button>
+                    <div id="checklistPersonalizadoContainer" style="display:none; margin-top:10px;">
+                        <label class="form-label">Ítems del checklist (uno por línea)</label>
+                        <div id="checklistItems">
+                            ${datos.checklist_personalizado ? 
+                                JSON.parse(datos.checklist_personalizado).map(item => `
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control bg-dark text-white checklist-item" value="${item.texto || ''}" placeholder="Nombre del ítem">
+                                        <span class="input-group-text bg-dark text-white" style="border-color: rgba(255,255,255,0.15);">
+                                            <input type="checkbox" class="form-check-input checklist-check" ${item.visto ? 'checked' : ''}>
+                                        </span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                `).join('')
+                            : `
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control bg-dark text-white checklist-item" placeholder="Nombre del ítem">
+                                    <span class="input-group-text bg-dark text-white" style="border-color: rgba(255,255,255,0.15);">
+                                        <input type="checkbox" class="form-check-input checklist-check">
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="agregarItemChecklist()">
+                            <i class="fas fa-plus me-1"></i> Agregar ítem
+                        </button>
+                    </div>
                 </div>`;
             break;
         default:
