@@ -185,4 +185,18 @@ const NotificationManager = {
     }
 };
 
+    // Mostrar notificación local (para el botón de campana)
+    mostrarLocal(titulo, cuerpo) {
+        if (!this.permisoConcedido) {
+            alert('Debes permitir las notificaciones');
+            return;
+        }
+        const opciones = {
+            body: cuerpo,
+            icon: '/misseries/favicon.png',
+            vibrate: [200, 100, 200]
+        };
+        new Notification(titulo, opciones);
+    }
+
 console.log('🔔 NotificationManager cargado');
