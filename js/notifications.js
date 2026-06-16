@@ -1,150 +1,173 @@
 // ============================================================
-// NOTIFICATIONS.JS - Google Calendar Recordatorios
+// NOTIFICATIONS.JS - Calendario interno con notificaciones
 // ============================================================
 
-const CalendarManager = {
-    calendarId: GOOGLE_CALENDAR.email,
+const NotificationManager = {
+    recordatorios: [],
+    intervaloRevisión: null,
+    permisoConcedido: false,
 
-    // Crear evento en Google Calendar
-    async crearEvento({ titulo, fecha, descripcion, serieId }) {
-        const fechaEvento = this.parsearFecha(fecha);
-        if (!fechaEvento) return;
-
-        // Fecha inicio: 7:00 AM
-        const inicio = new Date(fechaEvento);
-        inicio.setHours(7, 0, 0, 0);
-
-        // Fecha fin: 7:30 AM
-        const fin = new Date(inicio);
-        fin.setMinutes(30);
-
-        const evento = {
-            summary: titulo,
-            description: descripcion || '',
-            start: {
-                dateTime: inicio.toISOString(),
-                timeZone: 'America/El_Salvador'
-            },
-            end: {
-                dateTime: fin.toISOString(),
-                timeZone: 'America/El_Salvador'
-            },
-            reminders: {
-                useDefault: false,
-                overrides: [
-                    { method: 'popup', minutes: 0 }
-                ]
-            }
-        };
-
-        try {
-            const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?key=${GOOGLE_CALENDAR.apiKey}`;
-            
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(evento)
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('📅 Evento creado:', data.htmlLink);
-                return data;
-            } else {
-                const error = await response.json();
-                console.warn('⚠️ Error al crear evento:', error);
-                return null;
-            }
-        } catch (error) {
-            console.error('Error al crear evento en Calendar:', error);
-            return null;
+    // Inicializar
+    async init() {
+        if (!('Notification' in window)) {
+            console.warn('❌ Notificaciones no soportadas');
+            return false;
         }
+
+        // Pedir permiso
+        if (Notification.permission === 'granted') {
+            this.permisoConcedido = true;
+        } else if (Notification.permission !== 'denied') {
+            const permiso = await Notification.requestPermission();
+            this.permisoConcedido = permiso === 'granted';
+        }
+
+        if (this.permisoConcedido) {
+            console.log('🔔 Notificaciones activadas');
+            await this.cargarRecordatorios();
+            this.iniciarRevisión();
+        } else {
+            console.warn('⚠️ Permiso de notificaciones denegado');
+        }
+
+        return this.permisoConcedido;
     },
 
-    // Programar todos los recordatorios
-    async programarTodasLasNotificaciones() {
+    // Cargar todos los recordatorios desde Firestore
+    async cargarRecordatorios() {
         try {
             const snapshot = await seriesRef.get();
-            const series = [];
-            snapshot.forEach(doc => series.push({ id: doc.id, ...doc.data() }));
+            this.recordatorios = [];
 
-            for (const serie of series) {
-                await this.programarRecordatoriosSerie(serie);
-            }
+            snapshot.forEach(doc => {
+                const serie = { id: doc.id, ...doc.data() };
+                
+                // Fecha de estreno
+                if ((serie.categoria === 'pendiente_estreno' || serie.categoria === 'en_emision') && serie.fecha_estreno) {
+                    this.recordatorios.push({
+                        id: `estreno-${serie.id}`,
+                        titulo: `🎬 ¡Estrena hoy! ${serie.titulo}`,
+                        cuerpo: `${serie.titulo} se estrena hoy. ¡A disfrutar!`,
+                        fecha: this.parsearFecha(serie.fecha_estreno),
+                        url: 'pendiente_estreno.html',
+                        notificado: false
+                    });
 
-            console.log(`📅 Recordatorios programados para ${series.length} series`);
-        } catch (err) {
-            console.error('Error al programar recordatorios:', err);
-        }
-    },
+                    // Un día antes
+                    const unDiaAntes = this.parsearFecha(serie.fecha_estreno);
+                    if (unDiaAntes) {
+                        unDiaAntes.setDate(unDiaAntes.getDate() - 1);
+                        this.recordatorios.push({
+                            id: `pre-estreno-${serie.id}`,
+                            titulo: `📅 Mañana estrena: ${serie.titulo}`,
+                            cuerpo: `¡Prepárate! ${serie.titulo} se estrena mañana.`,
+                            fecha: new Date(unDiaAntes),
+                            url: 'pendiente_estreno.html',
+                            notificado: false
+                        });
+                    }
+                }
 
-    // Programar recordatorios de una serie
-    async programarRecordatoriosSerie(serie) {
-        const ahora = new Date();
+                // Capítulos de series en emisión
+                if (serie.categoria === 'en_emision' && serie.capitulos_checklist) {
+                    let capitulos = serie.capitulos_checklist;
+                    if (typeof capitulos === 'string') {
+                        try { capitulos = JSON.parse(capitulos); } catch (e) { return; }
+                    }
 
-        // Pendiente de estreno
-        if (serie.categoria === 'pendiente_estreno' && serie.fecha_estreno) {
-            const fechaEstreno = this.parsearFecha(serie.fecha_estreno);
-            if (fechaEstreno && fechaEstreno > ahora) {
-                // Recordatorio el día del estreno
-                await this.crearEvento({
-                    titulo: `🎬 ¡Estrena hoy! ${serie.titulo}`,
-                    fecha: serie.fecha_estreno,
-                    descripcion: `${serie.titulo} se estrena hoy. ¡A disfrutar!`,
-                    serieId: serie.id
-                });
-
-                // Recordatorio 1 día antes
-                const unDiaAntes = new Date(fechaEstreno);
-                unDiaAntes.setDate(unDiaAntes.getDate() - 1);
-                if (unDiaAntes > ahora) {
-                    await this.crearEvento({
-                        titulo: `📅 Mañana estrena: ${serie.titulo}`,
-                        fecha: unDiaAntes.toISOString().split('T')[0],
-                        descripcion: `Prepárate, ${serie.titulo} se estrena mañana.`,
-                        serieId: serie.id
+                    capitulos.filter(c => !c.visto).forEach(cap => {
+                        const fechaCap = this.parsearFecha(cap.fecha);
+                        if (fechaCap) {
+                            this.recordatorios.push({
+                                id: `cap-${serie.id}-${cap.numero}`,
+                                titulo: `📺 Nuevo capítulo: ${serie.titulo}`,
+                                cuerpo: `Capítulo ${cap.numero} de ${serie.titulo} disponible hoy.`,
+                                fecha: fechaCap,
+                                url: 'en_emision.html',
+                                notificado: false
+                            });
+                        }
                     });
                 }
-            }
-        }
+            });
 
-        // En Emisión - recordatorios por capítulo
-        if (serie.categoria === 'en_emision' && serie.capitulos_checklist) {
-            let capitulos = serie.capitulos_checklist;
-            if (typeof capitulos === 'string') {
-                try { capitulos = JSON.parse(capitulos); } catch (e) { return; }
-            }
-
-            const noVistos = capitulos.filter(c => !c.visto);
-            const limiteDias = 60; // Solo programar próximos 60 días
-
-            for (const cap of noVistos) {
-                const fechaCap = this.parsearFecha(cap.fecha);
-                if (!fechaCap || fechaCap <= ahora) continue;
-
-                const diffDias = (fechaCap - ahora) / (1000 * 60 * 60 * 24);
-                if (diffDias > limiteDias) continue;
-
-                await this.crearEvento({
-                    titulo: `📺 ${serie.titulo} - Capítulo ${cap.numero}`,
-                    fecha: cap.fecha,
-                    descripcion: `Nuevo capítulo de ${serie.titulo}: Capítulo ${cap.numero}`,
-                    serieId: serie.id
-                });
-            }
+            console.log(`📅 ${this.recordatorios.length} recordatorios cargados`);
+        } catch (err) {
+            console.error('Error al cargar recordatorios:', err);
         }
     },
 
-    // Reprogramar al agregar/editar
-    async reprogramarSerie(serieId) {
-        try {
-            const doc = await seriesRef.doc(serieId).get();
-            if (doc.exists) {
-                await this.programarRecordatoriosSerie({ id: doc.id, ...doc.data() });
+    // Iniciar revisión cada 30 segundos
+    iniciarRevisión() {
+        if (this.intervaloRevisión) clearInterval(this.intervaloRevisión);
+        
+        this.intervaloRevisión = setInterval(() => {
+            this.verificarRecordatorios();
+        }, 30000); // Cada 30 segundos
+
+        // Primera verificación inmediata
+        this.verificarRecordatorios();
+    },
+
+    // Verificar si hay recordatorios para AHORA
+    verificarRecordatorios() {
+        if (!this.permisoConcedido) return;
+
+        const ahora = new Date();
+        const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+        const horaActual = ahora.getHours();
+        const minutosActual = ahora.getMinutes();
+
+        this.recordatorios.forEach(recordatorio => {
+            if (recordatorio.notificado) return;
+
+            const fechaRec = recordatorio.fecha;
+            if (!fechaRec) return;
+
+            const fechaRecDate = new Date(fechaRec.getFullYear(), fechaRec.getMonth(), fechaRec.getDate());
+
+            // ¿Es hoy?
+            if (fechaRecDate.getTime() === hoy.getTime()) {
+                // Notificar a las 7:00 AM (o después si abrió tarde)
+                if (horaActual >= 7 && minutosActual >= 0) {
+                    this.mostrarNotificación(recordatorio);
+                    recordatorio.notificado = true;
+                }
             }
-        } catch (e) {
-            console.error('Error al reprogramar:', e);
-        }
+        });
+    },
+
+    // Mostrar notificación del navegador
+    mostrarNotificación(recordatorio) {
+        if (!this.permisoConcedido) return;
+
+        const opciones = {
+            body: recordatorio.cuerpo,
+            icon: '/misseries/favicon.png',
+            badge: '/misseries/favicon.png',
+            tag: recordatorio.id,
+            requireInteraction: true,
+            vibrate: [200, 100, 200, 100, 200],
+            data: { url: recordatorio.url }
+        };
+
+        const notificacion = new Notification(recordatorio.titulo, opciones);
+
+        notificacion.onclick = () => {
+            window.focus();
+            if (recordatorio.url) {
+                window.location.href = recordatorio.url;
+            }
+            notificacion.close();
+        };
+
+        // Auto-cerrar después de 30 segundos
+        setTimeout(() => notificacion.close(), 30000);
+    },
+
+    // Reprogramar después de agregar/editar
+    async reprogramarTodo() {
+        await this.cargarRecordatorios();
     },
 
     // Parsear fecha
@@ -155,11 +178,11 @@ const CalendarManager = {
             const str = typeof fechaStr === 'string' ? fechaStr.split('T')[0] : null;
             if (!str) return null;
             const [y, m, d] = str.split('-').map(Number);
-            return new Date(y, m - 1, d, 12, 0, 0);
+            return new Date(y, m - 1, d, 7, 0, 0); // 7:00 AM
         } catch (e) {
             return null;
         }
     }
 };
 
-console.log('📅 CalendarManager cargado');
+console.log('🔔 NotificationManager cargado');
