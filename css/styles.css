@@ -263,3 +263,19 @@ body {
         grid-template-columns: repeat(1, 1fr);
     }
 }
+
+/* Input de fecha en checklist */
+.checklist-fecha {
+    flex-shrink: 0;
+}
+
+.checklist-fecha::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+.capitulo-item {
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
